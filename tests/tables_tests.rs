@@ -105,3 +105,86 @@ fn test_styled_table_empty_data() {
     let output = table.to_string();
     assert!(output.contains("Empty"));
 }
+
+#[test]
+fn test_styled_table_remove_header_row() {
+    let data = vec![
+        TestRow {
+            name: "alice".into(),
+            value: 1,
+        },
+        TestRow {
+            name: "bob".into(),
+            value: 2,
+        },
+    ];
+
+    let table = StyledTable::new().remove_header_row().build(data);
+    let output = table.to_string();
+    assert!(!output.contains("name"));
+    assert!(!output.contains("value"));
+    assert!(output.contains("alice"));
+    assert!(output.contains("bob"));
+}
+
+#[test]
+fn test_styled_table_custom_padding() {
+    use bel7_cli::Padding;
+
+    let data = vec![TestRow {
+        name: "test".into(),
+        value: 42,
+    }];
+
+    let table = StyledTable::new()
+        .padding(Padding::new(0, 1, 0, 0))
+        .build(data);
+    let output = table.to_string();
+    assert!(output.contains("test"));
+}
+
+#[derive(Tabled, Clone)]
+struct MultiLineRow {
+    name: String,
+    tags: String,
+}
+
+#[test]
+fn test_styled_table_replace_newlines() {
+    let data = vec![MultiLineRow {
+        name: "item".into(),
+        tags: "tag1\ntag2\ntag3".into(),
+    }];
+
+    let table = StyledTable::new().replace_newlines(",").build(data);
+    let output = table.to_string();
+    assert!(output.contains("tag1,tag2,tag3"));
+    assert!(!output.contains("tag1\n"));
+}
+
+#[test]
+fn test_styled_table_borderless_with_all_options() {
+    use bel7_cli::Padding;
+
+    let data = vec![
+        MultiLineRow {
+            name: "item1".into(),
+            tags: "a\nb".into(),
+        },
+        MultiLineRow {
+            name: "item2".into(),
+            tags: "c\nd".into(),
+        },
+    ];
+
+    let table = StyledTable::new()
+        .style(TableStyle::Borderless)
+        .remove_header_row()
+        .padding(Padding::new(0, 1, 0, 0))
+        .replace_newlines(",")
+        .build(data);
+    let output = table.to_string();
+    assert!(output.contains("item1"));
+    assert!(output.contains("a,b"));
+    assert!(!output.contains("name"));
+}
