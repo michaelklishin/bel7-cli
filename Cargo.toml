@@ -1,0 +1,37 @@
+[package]
+name = "bel7-cli"
+version = "0.3.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Common CLI utilities: colored output, table formatting, string truncation"
+license = "MIT OR Apache-2.0"
+authors = ["Michael S. Klishin"]
+repository = "https://github.com/michaelklishin/bel7-cli"
+homepage = "https://github.com/michaelklishin/bel7-cli"
+keywords = ["cli"]
+categories = ["command-line-interface"]
+
+[dependencies]
+owo-colors = "4.2"
+
+[dependencies.sysexits]
+version = "0.10"
+optional = true
+
+[dependencies.tabled]
+version = "0.20"
+optional = true
+
+[dependencies.clap]
+version = "4.5"
+optional = true
+
+[dev-dependencies]
+thiserror = "2.0"
+
+[features]
+default = ["tables"]
+tables = ["dep:tabled"]
+clap = ["dep:clap"]
+errors = ["dep:sysexits"]
+full = ["tables", "clap", "errors"]

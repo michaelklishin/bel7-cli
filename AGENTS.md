@@ -1,0 +1,55 @@
+# Instructions for AI Agents
+
+## Overview
+
+`bel7-cli` is a small library providing common CLI utilities:
+colored console output, string truncation, table styling, and clap extensions.
+
+## Build and Test
+
+```bash
+cargo build --all-features
+
+cargo fmt --all
+
+cargo nextest run --all-features
+cargo clippy --all-features
+```
+
+## Repository Layout
+
+ * `src/lib.rs`: crate root, re-exports
+ * `src/output.rs`: colored console output helpers (print_success, print_error, etc.)
+ * `src/truncate.rs`: string truncation utilities
+ * `src/tables.rs`: table styling with tabled (requires the `tables` feature)
+ * `src/clap_ext.rs`: clap argument parsing extensions (requires the `clap` feature)
+
+## Key Dependencies
+
+ * `owo-colors`: terminal colors
+ * `tabled`: table formatting (optional)
+ * `clap`: CLI argument parsing (optional)
+
+## Target Rust Version
+
+ * This library targets very recent stable Rust
+
+## Rust Code Style
+
+ * Use top-level `use` statements (imports), e.g. `Display` or `fmt::Display` with a `use` statement, not `std::fmt::Display`
+ * Never use function-local `use` statements (imports)
+ * Add tests to the `tests/` directory, not inline with implementation
+ * At the end of each task, run `cargo fmt --all`
+ * At the end of each task, run `cargo clippy --all-features` and fix any warnings it might emit
+
+## Comments
+
+ * Only add very important comments, both in tests and in the implementation
+
+## Git Instructions
+
+ * Never add yourself to the list of commit co-authors
+
+## Style Guide
+
+ * Never add full stops to Markdown list items
