@@ -1,13 +1,24 @@
 # Change log
 
-## 0.5.0 (in development)
+## 0.5.0 (Dec 22, 2025)
 
-No changes yet
+### Bug Fixes
+
+  * `StyledTable::build` now removes column headers before adding a panel one
+
+### Enhancements
+
+  * `TableStyle`: `serde` support (behind a feature)
+  * `TableStyle`: `clap` support (behind a feature)
 
 ## 0.4.0 (Dec 22, 2025)
 
- * New utility functions: `StyledTable#remove_header_row`, `StyledTable#padding`, `StyledTable#replace_newlines`
+### Enhancements
+
+  * New utility functions: `StyledTable#remove_header_row`, `StyledTable#padding`, `StyledTable#replace_newlines`
 
 ## 0.3.0 (Dec 22, 2025)
 
- * Initial release
+### Enhancements
+
+  * Initial release

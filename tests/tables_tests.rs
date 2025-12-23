@@ -188,3 +188,28 @@ fn test_styled_table_borderless_with_all_options() {
     assert!(output.contains("a,b"));
     assert!(!output.contains("name"));
 }
+
+#[test]
+fn test_styled_table_header_with_remove_header_row() {
+    let data = vec![
+        TestRow {
+            name: "alice".into(),
+            value: 1,
+        },
+        TestRow {
+            name: "bob".into(),
+            value: 2,
+        },
+    ];
+
+    let table = StyledTable::new()
+        .header("My Table")
+        .remove_header_row()
+        .build(data);
+    let output = table.to_string();
+    assert!(output.contains("My Table"));
+    assert!(!output.contains("name"));
+    assert!(!output.contains("value"));
+    assert!(output.contains("alice"));
+    assert!(output.contains("bob"));
+}

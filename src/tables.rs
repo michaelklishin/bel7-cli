@@ -28,6 +28,9 @@ pub use tabled::settings::Padding;
 
 /// Available table styles for CLI output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
+#[cfg_attr(feature = "clap", clap(rename_all = "kebab-case"))]
 pub enum TableStyle {
     /// Modern rounded corners (default).
     #[default]
@@ -42,7 +45,7 @@ pub enum TableStyle {
     Ascii,
     /// psql-style output.
     Psql,
-    /// uses dots for borders.
+    /// Uses dots for borders.
     Dots,
 }
 
@@ -145,16 +148,17 @@ impl StyledTable {
 
         self.style.apply(&mut table);
 
-        if let Some(header) = self.header {
-            table.with(Panel::header(header));
-        }
-
         if let Some(padding) = self.padding {
             table.with(padding);
         }
 
+        // Remove column headers before adding panel header
         if self.remove_header_row {
             table.with(Remove::row(Rows::first()));
+        }
+
+        if let Some(header) = self.header {
+            table.with(Panel::header(header));
         }
 
         if let Some(replacement) = self.newline_replacement {
