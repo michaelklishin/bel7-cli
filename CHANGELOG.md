@@ -1,5 +1,9 @@
 # Change log
 
+## 0.6.0 (in development)
+
+No changes yet
+
 ## 0.5.0 (Dec 22, 2025)
 
 ### Bug Fixes
