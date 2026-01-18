@@ -29,8 +29,6 @@ pub use tabled::settings::Padding;
 /// Available table styles for CLI output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "clap", derive(clap::ValueEnum))]
-#[cfg_attr(feature = "clap", clap(rename_all = "kebab-case"))]
 pub enum TableStyle {
     /// Modern rounded corners (default).
     #[default]
@@ -47,6 +45,33 @@ pub enum TableStyle {
     Psql,
     /// Uses dots for borders.
     Dots,
+}
+
+#[cfg(feature = "clap")]
+impl clap::ValueEnum for TableStyle {
+    fn value_variants<'a>() -> &'a [Self] {
+        &[
+            Self::Modern,
+            Self::Borderless,
+            Self::Markdown,
+            Self::Sharp,
+            Self::Ascii,
+            Self::Psql,
+            Self::Dots,
+        ]
+    }
+
+    fn to_possible_value(&self) -> Option<clap::builder::PossibleValue> {
+        Some(clap::builder::PossibleValue::new(match self {
+            Self::Modern => "modern",
+            Self::Borderless => "borderless",
+            Self::Markdown => "markdown",
+            Self::Sharp => "sharp",
+            Self::Ascii => "ascii",
+            Self::Psql => "psql",
+            Self::Dots => "dots",
+        }))
+    }
 }
 
 impl TableStyle {

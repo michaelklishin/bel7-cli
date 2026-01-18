@@ -2,7 +2,9 @@
 
 ## 0.6.0 (in development)
 
-No changes yet
+### Enhancements
+
+  * Removed the slow to compile (via its `proc-macro` transient dep) `clap/derive` dependency
 
 ## 0.5.0 (Dec 22, 2025)
 
