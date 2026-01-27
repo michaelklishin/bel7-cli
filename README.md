@@ -2,9 +2,9 @@
 
 ## Overview
 
-This is a small library extracted from several Rust projects.
+This is a small library extracted from several Rust projects (`rabbitadmin` v2, `rabbitmq-lqt`, `frm`, and a few others).
 
-It is opinionated, does not substantially cut Rust CLI tools development time,
+The library is opinionated, may or may not substantially cut Rust CLI tools development time,
 and therefore is unlikely to be of much interest for the general public.
 
 ## License

@@ -12,7 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use bel7_cli::{StyledTable, TableStyle, display_option, display_option_or};
+use bel7_cli::{
+    DEFAULT_TERMINAL_WIDTH, Padding, StyledTable, TableStyle, build_table_with_columns,
+    display_option, display_option_or, parse_columns, responsive_width, terminal_width,
+};
 use tabled::Tabled;
 
 #[derive(Tabled, Clone)]
@@ -129,8 +132,6 @@ fn test_styled_table_remove_header_row() {
 
 #[test]
 fn test_styled_table_custom_padding() {
-    use bel7_cli::Padding;
-
     let data = vec![TestRow {
         name: "test".into(),
         value: 42,
@@ -164,8 +165,6 @@ fn test_styled_table_replace_newlines() {
 
 #[test]
 fn test_styled_table_borderless_with_all_options() {
-    use bel7_cli::Padding;
-
     let data = vec![
         MultiLineRow {
             name: "item1".into(),
@@ -212,4 +211,268 @@ fn test_styled_table_header_with_remove_header_row() {
     assert!(!output.contains("value"));
     assert!(output.contains("alice"));
     assert!(output.contains("bob"));
+}
+
+#[test]
+fn test_parse_columns_basic() {
+    let cols = parse_columns("name,value");
+    assert_eq!(cols, vec!["name", "value"]);
+}
+
+#[test]
+fn test_parse_columns_with_whitespace() {
+    let cols = parse_columns("name , value , status");
+    assert_eq!(cols, vec!["name", "value", "status"]);
+}
+
+#[test]
+fn test_parse_columns_case_insensitive() {
+    let cols = parse_columns("Name,VALUE,Status");
+    assert_eq!(cols, vec!["name", "value", "status"]);
+}
+
+#[test]
+fn test_parse_columns_empty_entries_filtered() {
+    let cols = parse_columns("name,,value,");
+    assert_eq!(cols, vec!["name", "value"]);
+}
+
+#[test]
+fn test_parse_columns_empty_string() {
+    let cols = parse_columns("");
+    assert!(cols.is_empty());
+}
+
+#[test]
+fn test_parse_columns_whitespace_only() {
+    let cols = parse_columns("  ,  ,  ");
+    assert!(cols.is_empty());
+}
+
+#[test]
+fn test_build_table_with_columns_selects_correct_columns() {
+    let data = vec![
+        TestRow {
+            name: "alice".into(),
+            value: 42,
+        },
+        TestRow {
+            name: "bob".into(),
+            value: 99,
+        },
+    ];
+
+    let columns = parse_columns("name");
+    let table = build_table_with_columns(&data, &columns);
+    let output = table.to_string();
+
+    assert!(output.contains("name"));
+    assert!(output.contains("alice"));
+    assert!(output.contains("bob"));
+    assert!(!output.contains("42"));
+    assert!(!output.contains("99"));
+}
+
+#[test]
+fn test_build_table_with_columns_multiple() {
+    let data = vec![TestRow {
+        name: "test".into(),
+        value: 123,
+    }];
+
+    let columns = parse_columns("value,name");
+    let table = build_table_with_columns(&data, &columns);
+    let output = table.to_string();
+
+    assert!(output.contains("value"));
+    assert!(output.contains("name"));
+    assert!(output.contains("test"));
+    assert!(output.contains("123"));
+}
+
+#[test]
+fn test_build_table_with_columns_unknown_ignored() {
+    let data = vec![TestRow {
+        name: "test".into(),
+        value: 1,
+    }];
+
+    let columns = parse_columns("name,unknown,nonexistent");
+    let table = build_table_with_columns(&data, &columns);
+    let output = table.to_string();
+
+    assert!(output.contains("name"));
+    assert!(output.contains("test"));
+    assert!(!output.contains("unknown"));
+    assert!(!output.contains("nonexistent"));
+}
+
+#[test]
+fn test_build_table_with_columns_empty_data() {
+    let data: Vec<TestRow> = vec![];
+    let columns = parse_columns("name,value");
+    let table = build_table_with_columns(&data, &columns);
+    let output = table.to_string();
+
+    assert!(output.contains("name"));
+    assert!(output.contains("value"));
+}
+
+#[test]
+fn test_build_table_with_columns_no_valid_columns() {
+    let data = vec![TestRow {
+        name: "test".into(),
+        value: 1,
+    }];
+
+    let columns = parse_columns("unknown,missing");
+    let table = build_table_with_columns(&data, &columns);
+    let output = table.to_string();
+
+    assert!(!output.contains("test"));
+    assert!(!output.contains("name"));
+}
+
+#[derive(Tabled, Clone)]
+struct ThreeColumnRow {
+    id: u32,
+    name: String,
+    status: String,
+}
+
+#[test]
+fn test_build_table_with_columns_preserves_order() {
+    let data = vec![ThreeColumnRow {
+        id: 1,
+        name: "first".into(),
+        status: "active".into(),
+    }];
+
+    let columns = parse_columns("status,id");
+    let table = build_table_with_columns(&data, &columns);
+    let output = table.to_string();
+
+    let status_pos = output.find("status").unwrap();
+    let id_pos = output.find("id").unwrap();
+    assert!(status_pos < id_pos);
+}
+
+#[test]
+fn test_build_table_with_columns_duplicate_columns() {
+    let data = vec![TestRow {
+        name: "test".into(),
+        value: 42,
+    }];
+
+    let columns = parse_columns("name,name");
+    let table = build_table_with_columns(&data, &columns);
+    let output = table.to_string();
+
+    assert!(output.contains("name"));
+    assert!(output.contains("test"));
+}
+
+#[test]
+fn test_terminal_width_returns_positive() {
+    let width = terminal_width();
+    assert!(width > 0);
+}
+
+#[test]
+fn test_default_terminal_width_constant() {
+    assert_eq!(DEFAULT_TERMINAL_WIDTH, 120);
+}
+
+#[test]
+fn test_responsive_width_full() {
+    let width = responsive_width(1.0);
+    assert!(width > 0);
+}
+
+#[test]
+fn test_responsive_width_half() {
+    let full = terminal_width();
+    let half = responsive_width(0.5);
+    assert!(half <= full);
+}
+
+#[test]
+fn test_responsive_width_clamps_over_one() {
+    let full = terminal_width();
+    let over = responsive_width(1.5);
+    assert_eq!(over, full);
+}
+
+#[test]
+fn test_responsive_width_clamps_negative() {
+    let zero = responsive_width(-0.5);
+    assert_eq!(zero, 0);
+}
+
+#[test]
+fn test_styled_table_max_width() {
+    let data = vec![TestRow {
+        name: "test".into(),
+        value: 42,
+    }];
+
+    let table = StyledTable::new().max_width(100).build(data);
+    let _ = table.to_string();
+}
+
+#[test]
+fn test_styled_table_wrap_column() {
+    let data = vec![MultiLineRow {
+        name: "item".into(),
+        tags: "very long content that should be wrapped at some point".into(),
+    }];
+
+    let table = StyledTable::new().wrap_column(1, 20).build(data);
+    let _ = table.to_string();
+}
+
+#[test]
+fn test_styled_table_responsive_combo() {
+    let data = vec![TestRow {
+        name: "test".into(),
+        value: 123,
+    }];
+
+    let table = StyledTable::new()
+        .style(TableStyle::Modern)
+        .wrap_column(0, 30)
+        .max_width(responsive_width(0.8))
+        .build(data);
+    let _ = table.to_string();
+}
+
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn parse_columns_always_lowercase(input in "[a-zA-Z,\\s]{0,50}") {
+            let cols = parse_columns(&input);
+            for col in &cols {
+                assert_eq!(col, &col.to_lowercase());
+            }
+        }
+
+        #[test]
+        fn parse_columns_no_empty_entries(input in "[a-zA-Z,\\s]{0,50}") {
+            let cols = parse_columns(&input);
+            for col in &cols {
+                assert!(!col.is_empty());
+            }
+        }
+
+        #[test]
+        fn parse_columns_no_whitespace(input in "[a-zA-Z,\\s]{0,50}") {
+            let cols = parse_columns(&input);
+            for col in &cols {
+                assert_eq!(col, col.trim());
+            }
+        }
+    }
 }

@@ -15,99 +15,145 @@
 //! Colored console output utilities.
 //!
 //! Provides consistent, colored output for CLI applications.
+//! Respects the `NO_COLOR` environment variable and detects non-TTY output.
+
+use std::env;
+use std::fmt::Display;
+use std::io::IsTerminal;
 
 use owo_colors::OwoColorize;
-use std::fmt::Display;
+
+/// Returns whether colored output should be used.
+///
+/// Returns `false` if the `NO_COLOR` environment variable is set (any value)
+/// or `stdout` is not a terminal (that is, piped or redirected).
+///
+/// This follows the [NO_COLOR standard](https://no-color.org/).
+#[must_use]
+pub fn should_colorize() -> bool {
+    env::var("NO_COLOR").is_err() && std::io::stdout().is_terminal()
+}
+
+/// Returns whether colored output should be used for stderr.
+///
+/// Returns `false` if the `NO_COLOR` environment variable is set (any value)
+/// or `stdout` is not a terminal (that is, piped or redirected).
+#[must_use]
+pub fn should_colorize_stderr() -> bool {
+    env::var("NO_COLOR").is_err() && std::io::stderr().is_terminal()
+}
 
 /// Prints a success message with a green checkmark prefix.
 ///
-/// # Example
-///
-/// ```
-/// use bel7_cli::print_success;
-///
-/// print_success("Operation completed");
-/// // Output: ✓ Operation completed (green checkmark)
-/// ```
+/// Respects `NO_COLOR` and terminal detection.
 pub fn print_success(message: impl Display) {
-    println!("{} {}", "✓".green().bold(), message);
+    if should_colorize() {
+        println!("{} {}", "✓".green().bold(), message);
+    } else {
+        println!("✓ {}", message);
+    }
 }
 
 /// Prints an error message to stderr with a red X prefix.
 ///
-/// # Example
-///
-/// ```
-/// use bel7_cli::print_error;
-///
-/// print_error("Something went wrong");
-/// // Output: ✗ Something went wrong (red X)
-/// ```
+/// Respects `NO_COLOR` and terminal detection.
 pub fn print_error(message: impl Display) {
-    eprintln!("{} {}", "✗".red().bold(), message);
+    if should_colorize_stderr() {
+        eprintln!("{} {}", "✗".red().bold(), message);
+    } else {
+        eprintln!("✗ {}", message);
+    }
 }
 
 /// Prints a warning message with a yellow exclamation prefix.
 ///
-/// # Example
-///
-/// ```
-/// use bel7_cli::print_warning;
-///
-/// print_warning("This might cause issues");
-/// // Output: ! This might cause issues (yellow !)
-/// ```
+/// Respects `NO_COLOR` and terminal detection.
 pub fn print_warning(message: impl Display) {
-    println!("{} {}", "!".yellow().bold(), message);
+    if should_colorize() {
+        println!("{} {}", "!".yellow().bold(), message);
+    } else {
+        println!("! {}", message);
+    }
 }
 
 /// Prints an info message with a blue arrow prefix.
 ///
-/// # Example
-///
-/// ```
-/// use bel7_cli::print_info;
-///
-/// print_info("Processing files...");
-/// // Output: → Processing files... (blue arrow)
-/// ```
+/// Respects `NO_COLOR` and terminal detection.
 pub fn print_info(message: impl Display) {
-    println!("{} {}", "→".blue().bold(), message);
+    if should_colorize() {
+        println!("{} {}", "→".blue().bold(), message);
+    } else {
+        println!("→ {}", message);
+    }
 }
 
 /// Prints a dimmed/muted message.
 ///
-/// Useful for secondary information or hints.
+/// Respects `NO_COLOR` and terminal detection.
 pub fn print_dimmed(message: impl Display) {
-    println!("{}", message.to_string().dimmed());
+    if should_colorize() {
+        println!("{}", message.to_string().dimmed());
+    } else {
+        println!("{}", message);
+    }
 }
 
-/// Formats a value as success (green).
+/// Formats a value as success (green) if colors are enabled.
+#[must_use]
 pub fn format_success<T: Display>(value: T) -> String {
-    format!("{}", value.green())
+    if should_colorize() {
+        format!("{}", value.green())
+    } else {
+        value.to_string()
+    }
 }
 
-/// Formats a value as error (red).
+/// Formats a value as error (red) if colors are enabled.
+#[must_use]
 pub fn format_error<T: Display>(value: T) -> String {
-    format!("{}", value.red())
+    if should_colorize() {
+        format!("{}", value.red())
+    } else {
+        value.to_string()
+    }
 }
 
-/// Formats a value as warning (yellow).
+/// Formats a value as warning (yellow) if colors are enabled.
+#[must_use]
 pub fn format_warning<T: Display>(value: T) -> String {
-    format!("{}", value.yellow())
+    if should_colorize() {
+        format!("{}", value.yellow())
+    } else {
+        value.to_string()
+    }
 }
 
-/// Formats a value as info (blue).
+/// Formats a value as info (blue) if colors are enabled.
+#[must_use]
 pub fn format_info<T: Display>(value: T) -> String {
-    format!("{}", value.blue())
+    if should_colorize() {
+        format!("{}", value.blue())
+    } else {
+        value.to_string()
+    }
 }
 
-/// Formats a value as dimmed/muted.
+/// Formats a value as dimmed/muted if colors are enabled.
+#[must_use]
 pub fn format_dimmed<T: Display>(value: T) -> String {
-    format!("{}", value.dimmed())
+    if should_colorize() {
+        format!("{}", value.dimmed())
+    } else {
+        value.to_string()
+    }
 }
 
-/// Formats a value as bold.
+/// Formats a value as bold if colors are enabled.
+#[must_use]
 pub fn format_bold<T: Display>(value: T) -> String {
-    format!("{}", value.bold())
+    if should_colorize() {
+        format!("{}", value.bold())
+    } else {
+        value.to_string()
+    }
 }

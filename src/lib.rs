@@ -20,11 +20,15 @@
 //! - String truncation for display
 //! - Table styling utilities (requires `tables` feature)
 //! - Clap argument helpers (requires `clap` feature)
+//! - Shell completion generation (requires `completions` feature)
+//! - Progress reporting (requires `progress` feature)
 //!
 //! # Features
 //!
 //! - `tables` - Enables table styling with `tabled`
 //! - `clap` - Enables clap argument helper extensions
+//! - `completions` - Enables shell completion generation
+//! - `progress` - Enables progress reporting utilities
 //! - `errors` - Enables exit code mapping with `sysexits`
 //! - `full` - Enables all features
 
@@ -40,6 +44,12 @@ mod tables;
 #[cfg(feature = "clap")]
 mod clap_ext;
 
+#[cfg(feature = "completions")]
+mod completions;
+
+#[cfg(feature = "progress")]
+mod progress;
+
 pub use output::*;
 pub use truncate::*;
 
@@ -48,6 +58,12 @@ pub use tables::*;
 
 #[cfg(feature = "clap")]
 pub use clap_ext::*;
+
+#[cfg(feature = "completions")]
+pub use completions::*;
+
+#[cfg(feature = "progress")]
+pub use progress::*;
 
 #[cfg(feature = "errors")]
 pub use errors::*;

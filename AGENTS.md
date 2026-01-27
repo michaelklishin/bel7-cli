@@ -3,7 +3,8 @@
 ## Overview
 
 `bel7-cli` is a small library providing common CLI utilities:
-colored console output, string truncation, table styling, and clap extensions.
+colored console output, string truncation, table styling, clap extensions,
+shell completion generation, and progress reporting.
 
 ## Build and Test
 
@@ -23,12 +24,19 @@ cargo clippy --all-features
  * `src/truncate.rs`: string truncation utilities
  * `src/tables.rs`: table styling with tabled (requires the `tables` feature)
  * `src/clap_ext.rs`: clap argument parsing extensions (requires the `clap` feature)
+ * `src/completions.rs`: shell completion generation (requires the `completions` feature)
+ * `src/progress.rs`: progress reporting utilities (requires the `progress` feature)
+ * `src/errors.rs`: exit code mapping (requires the `errors` feature)
 
 ## Key Dependencies
 
  * `owo-colors`: terminal colors
  * `tabled`: table formatting (optional)
+ * `terminal_size`: terminal width detection (optional, with `tables`)
  * `clap`: CLI argument parsing (optional)
+ * `clap_complete` and `clap_complete_nushell`: shell completion generation (optional)
+ * `indicatif`: progress bars and spinners (optional)
+ * `sysexits`: exit code mapping (optional)
 
 ## Target Rust Version
 

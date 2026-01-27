@@ -26,6 +26,22 @@ optional = true
 version = "4.5"
 optional = true
 
+[dependencies.clap_complete]
+version = "4.5"
+optional = true
+
+[dependencies.clap_complete_nushell]
+version = "4.5"
+optional = true
+
+[dependencies.indicatif]
+version = "0.18"
+optional = true
+
+[dependencies.terminal_size]
+version = "0.4"
+optional = true
+
 [dependencies.serde]
 version = "1.0"
 features = ["derive"]
@@ -33,11 +49,14 @@ optional = true
 
 [dev-dependencies]
 thiserror = "2.0"
+proptest = "1.6"
 
 [features]
 default = ["tables"]
-tables = ["dep:tabled"]
+tables = ["dep:tabled", "dep:terminal_size"]
 clap = ["dep:clap"]
+completions = ["clap", "dep:clap_complete", "dep:clap_complete_nushell"]
+progress = ["dep:indicatif"]
 serde = ["dep:serde"]
 errors = ["dep:sysexits"]
-full = ["tables", "clap", "serde", "errors"]
+full = ["tables", "clap", "completions", "progress", "serde", "errors"]

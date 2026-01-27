@@ -15,16 +15,43 @@
 //! Table styling utilities for CLI output.
 
 use std::fmt::Display;
-use tabled::{
-    Table,
-    settings::{
-        Format, Modify, Panel, Remove,
-        object::{Rows, Segment},
-        style::Style,
-    },
-};
+
+use tabled::Table;
+use tabled::builder::Builder;
+use tabled::settings::Format;
+use tabled::settings::Modify;
+use tabled::settings::Panel;
+use tabled::settings::Remove;
+use tabled::settings::Width;
+use tabled::settings::object::{Columns, Rows, Segment};
+use tabled::settings::style::Style;
+use terminal_size::Width as TermWidth;
+use terminal_size::terminal_size;
 
 pub use tabled::settings::Padding;
+
+/// Default terminal width when detection fails.
+pub const DEFAULT_TERMINAL_WIDTH: usize = 120;
+
+/// Returns the current terminal width in columns.
+///
+/// Falls back to `DEFAULT_TERMINAL_WIDTH` (120) if detection fails.
+#[must_use]
+pub fn terminal_width() -> usize {
+    terminal_size()
+        .map(|(TermWidth(w), _)| w as usize)
+        .unwrap_or(DEFAULT_TERMINAL_WIDTH)
+}
+
+/// Returns a target width for tables based on terminal size.
+///
+/// Uses a utilization factor (0.0-1.0) to leave some margin.
+/// Common value is 0.85 (85% of terminal width).
+#[must_use]
+pub fn responsive_width(utilization: f64) -> usize {
+    let width = terminal_width();
+    (width as f64 * utilization.clamp(0.0, 1.0)) as usize
+}
 
 /// Available table styles for CLI output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -110,6 +137,8 @@ pub struct StyledTable {
     remove_header_row: bool,
     padding: Option<Padding>,
     newline_replacement: Option<String>,
+    max_width: Option<usize>,
+    wrap_column: Option<(usize, usize)>,
 }
 
 impl Default for StyledTable {
@@ -120,6 +149,7 @@ impl Default for StyledTable {
 
 impl StyledTable {
     /// Creates a new table builder with the default style.
+    #[must_use]
     pub fn new() -> Self {
         Self {
             style: TableStyle::default(),
@@ -127,7 +157,25 @@ impl StyledTable {
             remove_header_row: false,
             padding: None,
             newline_replacement: None,
+            max_width: None,
+            wrap_column: None,
         }
+    }
+
+    /// Sets maximum width for the table (enables responsive layout).
+    #[must_use]
+    pub fn max_width(mut self, width: usize) -> Self {
+        self.max_width = Some(width);
+        self
+    }
+
+    /// Sets a column to wrap at a specific width.
+    ///
+    /// Column index is 0-based.
+    #[must_use]
+    pub fn wrap_column(mut self, column_index: usize, width: usize) -> Self {
+        self.wrap_column = Some((column_index, width));
+        self
     }
 
     /// Sets the table style.
@@ -193,6 +241,14 @@ impl StyledTable {
             );
         }
 
+        if let Some((col_idx, width)) = self.wrap_column {
+            table.with(Modify::new(Columns::new(col_idx..=col_idx)).with(Width::wrap(width)));
+        }
+
+        if let Some(width) = self.max_width {
+            table.with(Width::truncate(width));
+        }
+
         table
     }
 }
@@ -200,12 +256,58 @@ impl StyledTable {
 /// Formats an optional value for rendering in a table cell.
 ///
 /// Returns an empty string for None, otherwise the Display representation.
+#[must_use]
 pub fn display_option<T: Display>(opt: &Option<T>) -> String {
     opt.as_ref().map_or_else(String::new, |val| val.to_string())
 }
 
 /// Formats an optional value with a default.
+#[must_use]
 pub fn display_option_or<T: Display>(opt: &Option<T>, default: &str) -> String {
     opt.as_ref()
         .map_or_else(|| default.to_string(), |val| val.to_string())
+}
+
+/// Parses a comma-separated column list into a vector of lowercase column names.
+///
+/// Trims whitespace and filters empty entries.
+#[must_use]
+pub fn parse_columns(columns_arg: &str) -> Vec<String> {
+    columns_arg
+        .split(',')
+        .map(|s| s.trim().to_lowercase())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// Builds a table with only the specified columns.
+///
+/// Columns are matched case-insensitively. Unknown columns are ignored.
+#[must_use]
+pub fn build_table_with_columns<T: tabled::Tabled>(data: &[T], columns: &[String]) -> Table {
+    let mut builder = Builder::default();
+
+    let headers: Vec<String> = T::headers()
+        .into_iter()
+        .map(|c| c.to_string().to_lowercase())
+        .collect();
+
+    let valid_columns: Vec<(usize, &String)> = columns
+        .iter()
+        .filter_map(|col| headers.iter().position(|h| h == col).map(|idx| (idx, col)))
+        .collect();
+
+    builder.push_record(valid_columns.iter().map(|(_, col)| col.as_str()));
+
+    for item in data {
+        let fields: Vec<String> = item.fields().into_iter().map(|c| c.to_string()).collect();
+
+        let row: Vec<&str> = valid_columns
+            .iter()
+            .map(|(idx, _)| fields[*idx].as_str())
+            .collect();
+        builder.push_record(row);
+    }
+
+    builder.build()
 }
