@@ -67,3 +67,6 @@ pub use progress::*;
 
 #[cfg(feature = "errors")]
 pub use errors::*;
+
+mod testing;
+pub use testing::*;

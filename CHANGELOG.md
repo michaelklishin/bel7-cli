@@ -1,8 +1,10 @@
 # Change log
 
-## 0.8.0 (in development)
+## 0.8.0 (Jan 27, 2026)
 
-No changes yet
+### Enhancements
+
+  * Test helpers for resetting shell-specific environment variables in tests
 
 ## 0.7.0 (Jan 27, 2026)
 
