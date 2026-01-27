@@ -1,6 +1,10 @@
 # Change log
 
-## 0.7.0 (in development)
+## 0.8.0 (in development)
+
+No changes yet
+
+## 0.7.0 (Jan 27, 2026)
 
 ### Enhancements
 
