@@ -1,5 +1,11 @@
 # Change log
 
+## 0.9.0(Feb 22, 2026)
+
+### Dependency Upgrades
+
+ * Upgrade `sysexits` to `0.11.0`
+
 ## 0.8.0 (Jan 27, 2026)
 
 ### Enhancements
