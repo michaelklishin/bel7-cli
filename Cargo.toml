@@ -15,7 +15,7 @@ categories = ["command-line-interface"]
 owo-colors = "4.2"
 
 [dependencies.sysexits]
-version = "0.10"
+version = "0.11"
 optional = true
 
 [dependencies.tabled]

@@ -21,6 +21,20 @@ use std::process;
 
 pub use sysexits::ExitCode;
 
+/// Extension trait for converting `ExitCode` to `i32`.
+///
+/// sysexits 0.11 removed direct integer conversions;
+/// this trait provides the `to_i32` method for use with `process::exit`.
+pub trait ExitCodeExt {
+    fn to_i32(self) -> i32;
+}
+
+impl ExitCodeExt for ExitCode {
+    fn to_i32(self) -> i32 {
+        i32::from(u8::from(self))
+    }
+}
+
 /// Trait for errors that can be mapped to CLI exit codes.
 ///
 /// Uses BSD sysexits conventions for consistent exit code semantics.
@@ -119,10 +133,10 @@ where
     F: FnOnce() -> Result<(), E>,
 {
     match f() {
-        Ok(()) => process::exit(ExitCode::Ok as i32),
+        Ok(()) => process::exit(ExitCode::Ok.to_i32()),
         Err(e) => {
             eprintln!("Error: {e}");
-            process::exit(e.exit_code() as i32)
+            process::exit(e.exit_code().to_i32())
         }
     }
 }
