@@ -12,7 +12,7 @@ keywords = ["cli"]
 categories = ["command-line-interface"]
 
 [dependencies]
-owo-colors = "4.2"
+owo-colors = "4.3"
 
 [dependencies.sysexits]
 version = "0.11"
