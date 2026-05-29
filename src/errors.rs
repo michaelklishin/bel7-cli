@@ -17,6 +17,7 @@
 //! Provides exit code mapping following BSD sysexits conventions.
 
 use std::error::Error;
+use std::fmt;
 use std::process;
 
 pub use sysexits::ExitCode;
@@ -70,6 +71,23 @@ pub trait ExitCodeProvider: Error {
     fn exit_code(&self) -> ExitCode;
 }
 
+/// Exit code for the partial-success outcome: the program ran successfully
+/// but not every unit of work completed.
+///
+/// Use for verbs that operate over a set (commit list, file batch, test
+/// sweep) where the caller asked for "as much as possible" and the runtime
+/// delivered some-but-not-all. Distinct from `ExitCode::Ok` (everything
+/// succeeded) and from the `sysexits` error families (something went
+/// wrong). A shell consumer that wants "did anything work?" branches on
+/// `code == 0 || code == PARTIAL_SUCCESS_I32`.
+///
+/// `sysexits` has no slot for partial success — its codes are binary
+/// success-or-error. The number sits in the small-integer band alongside
+/// conventions like `diff`'s exit 1 ("differences found") and `rsync`'s
+/// exit 23 ("partial transfer"), without colliding with sysexits'
+/// `EX_USAGE = 64` and above.
+pub const PARTIAL_SUCCESS_I32: i32 = 3;
+
 /// Common exit code mappings for typical error categories.
 ///
 /// Use these as reference when implementing `ExitCodeProvider`.
@@ -78,6 +96,13 @@ pub mod codes {
 
     /// Exit code for successful completion.
     pub const OK: ExitCode = ExitCode::Ok;
+
+    /// Exit code for partial success: ran successfully but not every
+    /// unit of work completed. Re-exported as a plain `i32` because
+    /// `sysexits::ExitCode` is sealed upstream and has no
+    /// `PartialSuccess` variant. The canonical definition is
+    /// [`super::PARTIAL_SUCCESS_I32`].
+    pub const PARTIAL_SUCCESS: i32 = super::PARTIAL_SUCCESS_I32;
 
     /// Exit code for general errors.
     pub const SOFTWARE: ExitCode = ExitCode::Software;
@@ -113,6 +138,93 @@ pub mod codes {
     pub const USAGE: ExitCode = ExitCode::Usage;
 }
 
+/// A three-way outcome for command handlers that distinguish full
+/// success, partial success, and failure.
+///
+/// `ExitCodeProvider` covers the binary success-or-error world via
+/// [`run_with_exit_code`]. `Outcome` extends it with a third arm so a
+/// verb that operates over a set can report "some-but-not-all" without
+/// abusing an error variant.
+#[derive(Debug)]
+pub enum Outcome<E>
+where
+    E: ExitCodeProvider,
+{
+    /// Every unit of work completed.
+    Success,
+    /// Some units completed, others did not. Maps to
+    /// [`PARTIAL_SUCCESS_I32`].
+    PartialSuccess,
+    /// Something went wrong. The error's `ExitCodeProvider` impl
+    /// supplies the exit code.
+    ///
+    /// `ExitCodeProvider` implementations **must not** return
+    /// `ExitCode::Ok` — doing so collapses the failure to exit `0`
+    /// in [`Outcome::exit_code_i32`] and silently misclassifies it
+    /// as success. The trait cannot enforce this at the type level.
+    Failure(E),
+}
+
+impl<E> Outcome<E>
+where
+    E: ExitCodeProvider,
+{
+    /// The integer exit code this outcome corresponds to.
+    ///
+    /// Borrows rather than consuming so the caller can log the error
+    /// after computing the code.
+    pub fn exit_code_i32(&self) -> i32 {
+        match self {
+            Outcome::Success => ExitCode::Ok.to_i32(),
+            Outcome::PartialSuccess => PARTIAL_SUCCESS_I32,
+            Outcome::Failure(e) => e.exit_code().to_i32(),
+        }
+    }
+
+    /// Convert into the `Result<u8, E>` shape that consumers using
+    /// `process::ExitCode::from(u8)` need.
+    ///
+    /// `Success` and `PartialSuccess` collapse to their `Ok(u8)` codes;
+    /// `Failure(e)` propagates the error unchanged so the caller can
+    /// log a `caused by:` chain before exiting.
+    pub fn into_result_u8(self) -> Result<u8, E> {
+        match self {
+            Outcome::Success => Ok(0),
+            Outcome::PartialSuccess => Ok(PARTIAL_SUCCESS_I32 as u8),
+            Outcome::Failure(e) => Err(e),
+        }
+    }
+
+    pub fn is_success(&self) -> bool {
+        matches!(self, Outcome::Success)
+    }
+
+    pub fn is_partial_success(&self) -> bool {
+        matches!(self, Outcome::PartialSuccess)
+    }
+
+    pub fn is_failure(&self) -> bool {
+        matches!(self, Outcome::Failure(_))
+    }
+}
+
+impl<E> fmt::Display for Outcome<E>
+where
+    E: ExitCodeProvider + fmt::Display,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Outcome::Success => write!(f, "success (exit 0)"),
+            Outcome::PartialSuccess => {
+                write!(f, "partial success (exit {PARTIAL_SUCCESS_I32})")
+            }
+            Outcome::Failure(e) => {
+                write!(f, "failure (exit {}): {e}", e.exit_code().to_i32())
+            }
+        }
+    }
+}
+
 /// Helper function to run a main function and exit with appropriate code.
 ///
 /// # Example
@@ -137,6 +249,104 @@ where
         Err(e) => {
             eprintln!("Error: {e}");
             process::exit(e.exit_code().to_i32())
+        }
+    }
+}
+
+/// Sibling of [`run_with_exit_code`] for handlers that distinguish
+/// partial success.
+///
+/// On [`Outcome::PartialSuccess`] exits with [`PARTIAL_SUCCESS_I32`].
+/// On [`Outcome::Failure`] prints the error to stderr and exits with
+/// its `ExitCodeProvider` code. On [`Outcome::Success`] exits zero.
+pub fn run_with_outcome<E, F>(f: F) -> !
+where
+    E: ExitCodeProvider,
+    F: FnOnce() -> Outcome<E>,
+{
+    let outcome = f();
+    if let Outcome::Failure(e) = &outcome {
+        eprintln!("Error: {e}");
+    }
+    process::exit(outcome.exit_code_i32())
+}
+
+/// Consumer-side mirror of [`Outcome`] for Rust programs that read another
+/// process's exit code (subprocess drivers, CI gates, batch wrappers).
+///
+/// [`Outcome`] is what a CLI verb *produces*; `ExitOutcome` is what a
+/// downstream Rust caller *observes*. Both share the same constants
+/// ([`PARTIAL_SUCCESS_I32`], `0`) so an ecosystem CLI that adopts
+/// [`Outcome`] is automatically consumable through `ExitOutcome` without
+/// per-consumer code.
+///
+/// Unlike [`Outcome`], the `Failure` arm carries the raw `i32` exit code
+/// rather than a typed `E: ExitCodeProvider`, because the consumer
+/// observes integers from another process — there is no typed error to
+/// round-trip. Callers that need to branch on sysexits values (`64`
+/// usage, `65` data, `75` temp-fail) read the integer directly out of
+/// `Failure(i32)`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ExitOutcome {
+    /// The subprocess exited `0`.
+    Success,
+    /// The subprocess exited [`PARTIAL_SUCCESS_I32`]. The caller should
+    /// treat its stdout as a parseable payload (same as `Success`) but
+    /// note that not every unit of work completed.
+    PartialSuccess,
+    /// The subprocess exited with any other code, or was killed by a
+    /// signal. [`from_status`](Self::from_status) encodes Unix signal
+    /// kills as `Failure(128 + signum)` (the shell convention) so a
+    /// `SIGTERM` kill is distinguishable from `SIGINT` and from a
+    /// literal `exit(128 + signum)`. Windows and unrecognised
+    /// signal-less `None` statuses fall back to `Failure(-1)`.
+    ///
+    /// **Invariant.** Values constructed via
+    /// [`from_code`](Self::from_code) or
+    /// [`from_status`](Self::from_status) always carry an integer
+    /// that is `!= 0 && != PARTIAL_SUCCESS_I32`. Manual construction
+    /// can produce non-canonical states like `Failure(0)` —
+    /// [`canonicalize`](Self::canonicalize) collapses those to the
+    /// right `Success` / `PartialSuccess` arms.
+    Failure(i32),
+}
+
+impl ExitOutcome {
+    /// Classify a raw exit code. The primitive constructor —
+    /// [`ExitOutcome::from_status`] and any other entry point reduce to
+    /// this.
+    pub fn from_code(code: i32) -> Self {
+        match code {
+            0 => Self::Success,
+            c if c == PARTIAL_SUCCESS_I32 => Self::PartialSuccess,
+            other => Self::Failure(other),
+        }
+    }
+
+    /// Convenience for subprocess-driving callers. Folds
+    /// `ExitStatus::code()`'s `Option<i32>` into the right answer:
+    /// `None` (signal-killed on Unix) becomes `Failure(-1)`, so callers
+    /// don't write `.unwrap_or(0)` and silently classify a signal kill
+    /// as `Success`.
+    pub fn from_status(status: &process::ExitStatus) -> Self {
+        Self::from_code(status.code().unwrap_or(-1))
+    }
+
+    /// `true` for [`ExitOutcome::Success`] and
+    /// [`ExitOutcome::PartialSuccess`]. The single predicate consumers
+    /// reach for when "is the stdout payload worth parsing?" is the
+    /// question.
+    pub fn is_success_shaped(&self) -> bool {
+        matches!(self, Self::Success | Self::PartialSuccess)
+    }
+
+    /// The exit code this outcome corresponds to. Round-trip:
+    /// `ExitOutcome::from_code(n).code() == n` for every `i32`.
+    pub fn code(&self) -> i32 {
+        match self {
+            Self::Success => 0,
+            Self::PartialSuccess => PARTIAL_SUCCESS_I32,
+            Self::Failure(c) => *c,
         }
     }
 }

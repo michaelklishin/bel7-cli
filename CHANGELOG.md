@@ -1,5 +1,27 @@
 # Change log
 
+## 0.11.0 (May 29, 2026)
+
+### Enhancements
+
+  * New exit code `3` (`PARTIAL_SUCCESS_I32`, also re-exported as `codes::PARTIAL_SUCCESS`) for commands that ran but didn't finish every unit of work
+  * New `Outcome<E: ExitCodeProvider>` enum (`Success`, `PartialSuccess`, `Failure(E)`) — lets a command report "some of it landed" without faking an error
+  * `Outcome` has `exit_code_i32`, `into_result_u8`, `is_success`, `is_partial_success`, `is_failure`, and a `Display` impl
+  * New `run_with_outcome`: like `run_with_exit_code` but takes an `Outcome<E>` instead of a `Result<(), E>`
+  * New `ExitOutcome` enum (`Success`, `PartialSuccess`, `Failure(i32)`) for the other direction: reading another process's exit code from Rust
+  * `ExitOutcome` has `from_code`, `from_status`, `is_success_shaped`, and `code`
+
+### Dependency Upgrades
+
+  * Upgrade `owo-colors` to `4.3.0`
+  * Upgrade `thiserror` to `2.0.18`
+  * Upgrade `clap` to `4.6.0`
+  * Upgrade `clap_complete` to `4.6.2`
+  * Upgrade `clap_complete_nushell` to `4.6.0`
+  * Upgrade `indicatif` to `0.18.4`
+  * Upgrade `terminal_size` to `0.4.4`
+  * Upgrade `proptest` (dev) to `1.11.0`
+
 ## 0.9.0(Feb 22, 2026)
 
 ### Dependency Upgrades

@@ -93,6 +93,7 @@ fn test_non_interactive_reporter_default() {
 }
 
 #[test]
+#[allow(clippy::default_constructed_unit_structs)]
 fn test_quiet_reporter_default() {
     let reporter = QuietReporter::default();
     let _ = reporter;
@@ -187,6 +188,7 @@ fn test_boxed_reporter() {
 }
 
 #[test]
+#[allow(clippy::clone_on_copy)]
 fn test_quiet_reporter_clone() {
     let reporter = QuietReporter::new();
     let cloned = reporter.clone();

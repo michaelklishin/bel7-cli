@@ -163,6 +163,7 @@ fn test_value_enum_possible_values() {
 }
 
 #[test]
+#[allow(clippy::clone_on_copy)]
 fn test_clone_and_copy() {
     let shell = CompletionShell::Bash;
     let cloned = shell.clone();
