@@ -9,3 +9,12 @@ updates:
       - "michaelklishin"
     assignees:
       - "michaelklishin"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    reviewers:
+      - "michaelklishin"
+    assignees:
+      - "michaelklishin"

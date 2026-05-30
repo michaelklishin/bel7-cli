@@ -18,6 +18,8 @@
 
 use std::error::Error;
 use std::fmt;
+#[cfg(unix)]
+use std::os::unix::process::ExitStatusExt;
 use std::process;
 
 pub use sysexits::ExitCode;
@@ -86,7 +88,21 @@ pub trait ExitCodeProvider: Error {
 /// conventions like `diff`'s exit 1 ("differences found") and `rsync`'s
 /// exit 23 ("partial transfer"), without colliding with sysexits'
 /// `EX_USAGE = 64` and above.
+///
+/// Mirrored as [`PARTIAL_SUCCESS_U8`].
 pub const PARTIAL_SUCCESS_I32: i32 = 3;
+
+/// `u8` mirror of [`PARTIAL_SUCCESS_I32`] for consumers piping through
+/// [`process::ExitCode::from(u8)`](process::ExitCode). The u8-fit is
+/// enforced at compile time by the assertion below.
+pub const PARTIAL_SUCCESS_U8: u8 = 3;
+
+const _: () = assert!(
+    PARTIAL_SUCCESS_I32 >= 0
+        && PARTIAL_SUCCESS_I32 <= u8::MAX as i32
+        && PARTIAL_SUCCESS_I32 as u8 == PARTIAL_SUCCESS_U8,
+    "PARTIAL_SUCCESS_I32 must fit in u8 and agree with PARTIAL_SUCCESS_U8",
+);
 
 /// Common exit code mappings for typical error categories.
 ///
@@ -103,6 +119,10 @@ pub mod codes {
     /// `PartialSuccess` variant. The canonical definition is
     /// [`super::PARTIAL_SUCCESS_I32`].
     pub const PARTIAL_SUCCESS: i32 = super::PARTIAL_SUCCESS_I32;
+
+    /// `u8` mirror of [`PARTIAL_SUCCESS`]; canonical at
+    /// [`super::PARTIAL_SUCCESS_U8`].
+    pub const PARTIAL_SUCCESS_U8: u8 = super::PARTIAL_SUCCESS_U8;
 
     /// Exit code for general errors.
     pub const SOFTWARE: ExitCode = ExitCode::Software;
@@ -190,7 +210,7 @@ where
     pub fn into_result_u8(self) -> Result<u8, E> {
         match self {
             Outcome::Success => Ok(0),
-            Outcome::PartialSuccess => Ok(PARTIAL_SUCCESS_I32 as u8),
+            Outcome::PartialSuccess => Ok(PARTIAL_SUCCESS_U8),
             Outcome::Failure(e) => Err(e),
         }
     }
@@ -294,20 +314,19 @@ pub enum ExitOutcome {
     /// treat its stdout as a parseable payload (same as `Success`) but
     /// note that not every unit of work completed.
     PartialSuccess,
-    /// The subprocess exited with any other code, or was killed by a
-    /// signal. [`from_status`](Self::from_status) encodes Unix signal
-    /// kills as `Failure(128 + signum)` (the shell convention) so a
-    /// `SIGTERM` kill is distinguishable from `SIGINT` and from a
-    /// literal `exit(128 + signum)`. Windows and unrecognised
-    /// signal-less `None` statuses fall back to `Failure(-1)`.
+    /// The subprocess exited with any other code, or (on Unix) was
+    /// killed by a signal. [`from_status`](Self::from_status) encodes
+    /// Unix signal kills as `Failure(128 + signum)` — the shell
+    /// convention — so `SIGTERM` (`143`) stays distinguishable from
+    /// `SIGINT` (`130`) and from a literal `exit(143)`. A signal-less
+    /// `None` status (rare) falls back to `Failure(-1)`.
     ///
     /// **Invariant.** Values constructed via
     /// [`from_code`](Self::from_code) or
     /// [`from_status`](Self::from_status) always carry an integer
     /// that is `!= 0 && != PARTIAL_SUCCESS_I32`. Manual construction
-    /// can produce non-canonical states like `Failure(0)` —
-    /// [`canonicalize`](Self::canonicalize) collapses those to the
-    /// right `Success` / `PartialSuccess` arms.
+    /// (e.g. `Failure(0)`) bypasses the invariant; use
+    /// [`canonicalize`](Self::canonicalize) to restore it.
     Failure(i32),
 }
 
@@ -323,21 +342,45 @@ impl ExitOutcome {
         }
     }
 
-    /// Convenience for subprocess-driving callers. Folds
-    /// `ExitStatus::code()`'s `Option<i32>` into the right answer:
-    /// `None` (signal-killed on Unix) becomes `Failure(-1)`, so callers
-    /// don't write `.unwrap_or(0)` and silently classify a signal kill
-    /// as `Success`.
+    /// Classify a [`process::ExitStatus`] from a child subprocess.
+    ///
+    /// On Unix, a signal kill (`status.code()` is `None`) maps to
+    /// `Failure(128 + signum)` — the shell convention that keeps
+    /// `SIGTERM` (143) distinguishable from `SIGINT` (130) and from a
+    /// literal `exit(143)`. Unknown signal-less statuses fall back to
+    /// `Failure(-1)`. On Windows, `status.code()` is always `Some`,
+    /// so the helper just defers to [`Self::from_code`].
     pub fn from_status(status: &process::ExitStatus) -> Self {
-        Self::from_code(status.code().unwrap_or(-1))
+        if let Some(code) = status.code() {
+            return Self::from_code(code);
+        }
+        #[cfg(unix)]
+        if let Some(signum) = ExitStatusExt::signal(status) {
+            return Self::Failure(128 + signum);
+        }
+        Self::Failure(-1)
     }
 
     /// `true` for [`ExitOutcome::Success`] and
-    /// [`ExitOutcome::PartialSuccess`]. The single predicate consumers
-    /// reach for when "is the stdout payload worth parsing?" is the
-    /// question.
+    /// [`ExitOutcome::PartialSuccess`] — the check a subprocess driver
+    /// reaches for to decide "should I parse stdout as a payload?".
     pub fn is_success_shaped(&self) -> bool {
         matches!(self, Self::Success | Self::PartialSuccess)
+    }
+
+    /// `true` iff this is [`ExitOutcome::Success`].
+    pub fn is_success(&self) -> bool {
+        matches!(self, Self::Success)
+    }
+
+    /// `true` iff this is [`ExitOutcome::PartialSuccess`].
+    pub fn is_partial_success(&self) -> bool {
+        matches!(self, Self::PartialSuccess)
+    }
+
+    /// `true` iff this is [`ExitOutcome::Failure`].
+    pub fn is_failure(&self) -> bool {
+        matches!(self, Self::Failure(_))
     }
 
     /// The exit code this outcome corresponds to. Round-trip:
@@ -347,6 +390,34 @@ impl ExitOutcome {
             Self::Success => 0,
             Self::PartialSuccess => PARTIAL_SUCCESS_I32,
             Self::Failure(c) => *c,
+        }
+    }
+
+    /// Collapse a manually-constructed non-canonical state into its
+    /// canonical arm. `Failure(0)` becomes `Success`,
+    /// `Failure(PARTIAL_SUCCESS_I32)` becomes `PartialSuccess`,
+    /// everything else is returned unchanged.
+    ///
+    /// Useful when an `ExitOutcome` is built from an integer field
+    /// (e.g. a JSON envelope's `exit_code`) directly into the
+    /// `Failure` variant; calling `canonicalize` afterwards restores
+    /// the invariant [`from_code`](Self::from_code) maintains.
+    pub fn canonicalize(self) -> Self {
+        match self {
+            Self::Failure(c) => Self::from_code(c),
+            other => other,
+        }
+    }
+}
+
+impl fmt::Display for ExitOutcome {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Success => write!(f, "success (exit 0)"),
+            Self::PartialSuccess => {
+                write!(f, "partial success (exit {PARTIAL_SUCCESS_I32})")
+            }
+            Self::Failure(c) => write!(f, "failure (exit {c})"),
         }
     }
 }

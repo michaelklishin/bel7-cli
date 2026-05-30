@@ -13,9 +13,9 @@
 // limitations under the License.
 
 use bel7_cli::{
-    ExitCode, ExitCodeExt, ExitCodeProvider, ExitOutcome, Outcome, PARTIAL_SUCCESS_I32, codes,
+    ExitCode, ExitCodeExt, ExitCodeProvider, ExitOutcome, Outcome, PARTIAL_SUCCESS_I32,
+    PARTIAL_SUCCESS_U8, codes,
 };
-use proptest::prelude::*;
 use thiserror::Error;
 
 #[cfg(unix)]
@@ -40,9 +40,8 @@ impl ExitCodeProvider for TestError {
     }
 }
 
-// Every `sysexits::ExitCode` variant the crate currently exposes. Kept in
-// one place so the partial-success collision test and any future variant
-// sweep share the same list.
+// Shared by the partial-success collision test and the sysexits
+// round-trip test.
 const ALL_EXIT_CODES: &[ExitCode] = &[
     ExitCode::Ok,
     ExitCode::Usage,
@@ -73,6 +72,13 @@ fn partial_success_constant_is_three() {
     assert_eq!(PARTIAL_SUCCESS_I32, 3);
     assert_eq!(codes::PARTIAL_SUCCESS, 3);
     assert_eq!(codes::PARTIAL_SUCCESS, PARTIAL_SUCCESS_I32);
+}
+
+#[test]
+fn partial_success_u8_mirrors_i32_constant() {
+    assert_eq!(PARTIAL_SUCCESS_U8, 3);
+    assert_eq!(codes::PARTIAL_SUCCESS_U8, PARTIAL_SUCCESS_U8);
+    assert_eq!(i32::from(PARTIAL_SUCCESS_U8), PARTIAL_SUCCESS_I32);
 }
 
 #[test]
@@ -180,18 +186,39 @@ fn exit_outcome_failure_carries_original_sysexits_code() {
     }
 }
 
-// `ExitStatus::code() == None` on Unix means signal-killed. We synthesise
-// that case via `from_raw` and assert `from_status` does not silently
-// classify it as success. Windows lacks the same primitive; downstream
-// integration tests cover real-process behaviour there.
+// On Unix `ExitStatus::code() == None` means the child was killed by a
+// signal. `from_status` encodes those as `Failure(128 + signum)` (the
+// shell convention) so `SIGTERM` stays distinguishable from `SIGINT` and
+// from a literal `exit(143)`. Windows lacks the equivalent primitive;
+// downstream integration tests cover real-process behaviour there.
 #[cfg(unix)]
 #[test]
-fn exit_outcome_from_status_handles_signal_killed_as_failure() {
+fn exit_outcome_from_status_encodes_sigkill_as_one_thirty_seven() {
     let killed_by_sigkill = ExitStatus::from_raw(9);
     assert!(killed_by_sigkill.code().is_none());
     let outcome = ExitOutcome::from_status(&killed_by_sigkill);
-    assert_eq!(outcome, ExitOutcome::Failure(-1));
+    assert_eq!(outcome, ExitOutcome::Failure(137));
     assert!(!outcome.is_success_shaped());
+}
+
+#[cfg(unix)]
+#[test]
+fn exit_outcome_from_status_distinguishes_signal_kills() {
+    let by_sigterm = ExitStatus::from_raw(15);
+    let by_sigint = ExitStatus::from_raw(2);
+    let by_sigkill = ExitStatus::from_raw(9);
+    assert_eq!(
+        ExitOutcome::from_status(&by_sigterm),
+        ExitOutcome::Failure(143)
+    );
+    assert_eq!(
+        ExitOutcome::from_status(&by_sigint),
+        ExitOutcome::Failure(130)
+    );
+    assert_eq!(
+        ExitOutcome::from_status(&by_sigkill),
+        ExitOutcome::Failure(137)
+    );
 }
 
 #[cfg(unix)]
@@ -214,28 +241,171 @@ fn exit_outcome_from_status_clean_exits_route_through_from_code() {
     );
 }
 
-proptest! {
-    #[test]
-    fn prop_exit_outcome_code_round_trips_with_from_code(n in any::<i32>()) {
-        prop_assert_eq!(ExitOutcome::from_code(n).code(), n);
-    }
+#[test]
+fn outcome_is_success_true_only_on_success_arm() {
+    assert!(Outcome::<TestError>::Success.is_success());
+    assert!(!Outcome::<TestError>::PartialSuccess.is_success());
+    assert!(!Outcome::Failure(TestError::Denied).is_success());
+}
 
-    #[test]
-    fn prop_exit_outcome_success_shaped_iff_zero_or_partial(n in any::<i32>()) {
-        let shaped = ExitOutcome::from_code(n).is_success_shaped();
-        let expected = n == 0 || n == PARTIAL_SUCCESS_I32;
-        prop_assert_eq!(shaped, expected);
-    }
+#[test]
+fn outcome_is_partial_success_true_only_on_partial_success_arm() {
+    assert!(!Outcome::<TestError>::Success.is_partial_success());
+    assert!(Outcome::<TestError>::PartialSuccess.is_partial_success());
+    assert!(!Outcome::Failure(TestError::Denied).is_partial_success());
+}
 
-    #[test]
-    fn prop_exit_outcome_from_code_arm_matches_input(n in any::<i32>()) {
-        match ExitOutcome::from_code(n) {
-            ExitOutcome::Success => prop_assert_eq!(n, 0),
-            ExitOutcome::PartialSuccess => prop_assert_eq!(n, PARTIAL_SUCCESS_I32),
-            ExitOutcome::Failure(c) => {
-                prop_assert_eq!(c, n);
-                prop_assert!(n != 0 && n != PARTIAL_SUCCESS_I32);
+#[test]
+fn outcome_is_failure_true_only_on_failure_arm() {
+    assert!(!Outcome::<TestError>::Success.is_failure());
+    assert!(!Outcome::<TestError>::PartialSuccess.is_failure());
+    assert!(Outcome::Failure(TestError::Denied).is_failure());
+}
+
+#[test]
+fn outcome_display_success_format_is_stable() {
+    let o: Outcome<TestError> = Outcome::Success;
+    assert_eq!(o.to_string(), "success (exit 0)");
+}
+
+#[test]
+fn outcome_display_partial_success_format_is_stable() {
+    let o: Outcome<TestError> = Outcome::PartialSuccess;
+    assert_eq!(o.to_string(), "partial success (exit 3)");
+}
+
+#[test]
+fn outcome_display_failure_includes_exit_code_and_error_message() {
+    let o: Outcome<TestError> = Outcome::Failure(TestError::NotFound);
+    let expected = format!("failure (exit {}): not found", ExitCode::NoInput.to_i32());
+    assert_eq!(o.to_string(), expected);
+
+    let o: Outcome<TestError> = Outcome::Failure(TestError::Denied);
+    let expected = format!("failure (exit {}): denied", ExitCode::NoPerm.to_i32());
+    assert_eq!(o.to_string(), expected);
+}
+
+#[test]
+fn exit_outcome_is_success_true_only_on_success_arm() {
+    assert!(ExitOutcome::Success.is_success());
+    assert!(!ExitOutcome::PartialSuccess.is_success());
+    assert!(!ExitOutcome::Failure(64).is_success());
+}
+
+#[test]
+fn exit_outcome_is_partial_success_true_only_on_partial_success_arm() {
+    assert!(!ExitOutcome::Success.is_partial_success());
+    assert!(ExitOutcome::PartialSuccess.is_partial_success());
+    assert!(!ExitOutcome::Failure(64).is_partial_success());
+}
+
+#[test]
+fn exit_outcome_is_failure_true_only_on_failure_arm() {
+    assert!(!ExitOutcome::Success.is_failure());
+    assert!(!ExitOutcome::PartialSuccess.is_failure());
+    assert!(ExitOutcome::Failure(64).is_failure());
+}
+
+#[test]
+fn exit_outcome_display_success_format_is_stable() {
+    assert_eq!(ExitOutcome::Success.to_string(), "success (exit 0)");
+}
+
+#[test]
+fn exit_outcome_display_partial_success_format_is_stable() {
+    assert_eq!(
+        ExitOutcome::PartialSuccess.to_string(),
+        "partial success (exit 3)"
+    );
+}
+
+#[test]
+fn exit_outcome_display_failure_includes_exit_code() {
+    assert_eq!(ExitOutcome::Failure(64).to_string(), "failure (exit 64)");
+    assert_eq!(ExitOutcome::Failure(-1).to_string(), "failure (exit -1)");
+    assert_eq!(ExitOutcome::Failure(137).to_string(), "failure (exit 137)");
+}
+
+#[test]
+fn exit_outcome_display_renders_non_canonical_failure_verbatim() {
+    assert_eq!(ExitOutcome::Failure(0).to_string(), "failure (exit 0)");
+    assert_eq!(
+        ExitOutcome::Failure(PARTIAL_SUCCESS_I32).to_string(),
+        "failure (exit 3)"
+    );
+}
+
+#[test]
+fn exit_outcome_canonicalize_collapses_failure_zero_to_success() {
+    assert_eq!(ExitOutcome::Failure(0).canonicalize(), ExitOutcome::Success);
+}
+
+#[test]
+fn exit_outcome_canonicalize_collapses_failure_partial_to_partial_success() {
+    assert_eq!(
+        ExitOutcome::Failure(PARTIAL_SUCCESS_I32).canonicalize(),
+        ExitOutcome::PartialSuccess
+    );
+}
+
+#[test]
+fn exit_outcome_canonicalize_leaves_canonical_arms_unchanged() {
+    assert_eq!(ExitOutcome::Success.canonicalize(), ExitOutcome::Success);
+    assert_eq!(
+        ExitOutcome::PartialSuccess.canonicalize(),
+        ExitOutcome::PartialSuccess
+    );
+    assert_eq!(
+        ExitOutcome::Failure(64).canonicalize(),
+        ExitOutcome::Failure(64)
+    );
+    assert_eq!(
+        ExitOutcome::Failure(-1).canonicalize(),
+        ExitOutcome::Failure(-1)
+    );
+}
+
+mod proptests {
+    use super::*;
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn prop_exit_outcome_code_round_trips_with_from_code(n in any::<i32>()) {
+            prop_assert_eq!(ExitOutcome::from_code(n).code(), n);
+        }
+
+        #[test]
+        fn prop_exit_outcome_success_shaped_iff_zero_or_partial(n in any::<i32>()) {
+            let shaped = ExitOutcome::from_code(n).is_success_shaped();
+            let expected = n == 0 || n == PARTIAL_SUCCESS_I32;
+            prop_assert_eq!(shaped, expected);
+        }
+
+        #[test]
+        fn prop_exit_outcome_from_code_arm_matches_input(n in any::<i32>()) {
+            match ExitOutcome::from_code(n) {
+                ExitOutcome::Success => prop_assert_eq!(n, 0),
+                ExitOutcome::PartialSuccess => prop_assert_eq!(n, PARTIAL_SUCCESS_I32),
+                ExitOutcome::Failure(c) => {
+                    prop_assert_eq!(c, n);
+                    prop_assert!(n != 0 && n != PARTIAL_SUCCESS_I32);
+                }
             }
+        }
+
+        #[test]
+        fn prop_canonicalize_failure_equals_from_code_of_inner(n in any::<i32>()) {
+            prop_assert_eq!(
+                ExitOutcome::Failure(n).canonicalize(),
+                ExitOutcome::from_code(n)
+            );
+        }
+
+        #[test]
+        fn prop_canonicalize_is_idempotent(n in any::<i32>()) {
+            let once = ExitOutcome::Failure(n).canonicalize();
+            prop_assert_eq!(once.canonicalize(), once);
         }
     }
 }

@@ -1,15 +1,18 @@
 # Change log
 
-## 0.11.0 (May 29, 2026)
+## 0.12.0 (in development)
 
 ### Enhancements
 
   * New exit code `3` (`PARTIAL_SUCCESS_I32`, also re-exported as `codes::PARTIAL_SUCCESS`) for commands that ran but didn't finish every unit of work
+  * New `PARTIAL_SUCCESS_U8: u8 = 3` (also re-exported as `codes::PARTIAL_SUCCESS_U8`) for consumers that pipe through `process::ExitCode::from(u8)` without the `as u8` cast; a compile-time assertion pins the u8-fit so the constant can't silently move out of range
   * New `Outcome<E: ExitCodeProvider>` enum (`Success`, `PartialSuccess`, `Failure(E)`) — lets a command report "some of it landed" without faking an error
-  * `Outcome` has `exit_code_i32`, `into_result_u8`, `is_success`, `is_partial_success`, `is_failure`, and a `Display` impl
+  * `Outcome` provides `exit_code_i32`, `into_result_u8`, `is_success`, `is_partial_success`, `is_failure`, and a `Display` impl
   * New `run_with_outcome`: like `run_with_exit_code` but takes an `Outcome<E>` instead of a `Result<(), E>`
   * New `ExitOutcome` enum (`Success`, `PartialSuccess`, `Failure(i32)`) for the other direction: reading another process's exit code from Rust
-  * `ExitOutcome` has `from_code`, `from_status`, `is_success_shaped`, and `code`
+  * On non-Windows, `ExitOutcome::from_status` encodes signal kills as `Failure(128 + signum)` — the shell convention, so `SIGTERM` becomes `143`, `SIGINT` becomes `130`, `SIGKILL` becomes `137` — so callers can tell signals apart
+  * `ExitOutcome` provides `is_success`, `is_partial_success`, `is_failure`, `from_code`, `from_status`, `is_success_shaped`, `code`, `canonicalize`, and a `Display` impl
+  * `ExitOutcome::canonicalize` collapses a manually-built `Failure(0)` to `Success` and `Failure(3)` to `PartialSuccess`, useful when an `ExitOutcome` is built directly from a JSON envelope's integer field
 
 ### Dependency Upgrades
 
