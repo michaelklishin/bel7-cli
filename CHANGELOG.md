@@ -2,7 +2,9 @@
 
 ## 0.13.0 (in development)
 
-No changes yet.
+### Dependencies
+
+ * `tabled` upgraded to `0.21.0`
 
 
 ## 0.12.0 (May 29, 2026)
