@@ -1,6 +1,6 @@
 # Change log
 
-## 0.13.0 (in development)
+## 0.13.0 (Jun 1, 2026)
 
 ### Dependencies
 
