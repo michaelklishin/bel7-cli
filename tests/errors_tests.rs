@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![cfg(feature = "errors")]
+
 use bel7_cli::{
     ExitCode, ExitCodeExt, ExitCodeProvider, ExitOutcome, Outcome, PARTIAL_SUCCESS_I32,
     PARTIAL_SUCCESS_U8, codes,
@@ -127,6 +129,31 @@ fn outcome_into_result_u8_propagates_failure_unchanged() {
     let err = failure.into_result_u8().unwrap_err();
     assert!(matches!(err, TestError::Denied));
     assert_eq!(err.exit_code(), ExitCode::NoPerm);
+}
+
+#[test]
+fn outcome_partial_if_maps_bool_to_variant() {
+    let degraded: Outcome<TestError> = Outcome::partial_if(true);
+    assert!(degraded.is_partial_success());
+
+    let clean: Outcome<TestError> = Outcome::partial_if(false);
+    assert!(clean.is_success());
+}
+
+#[test]
+fn exit_outcome_max_selects_worst() {
+    assert!(ExitOutcome::Success < ExitOutcome::PartialSuccess);
+    assert!(ExitOutcome::PartialSuccess < ExitOutcome::Failure(1));
+
+    let outcomes = [
+        ExitOutcome::Success,
+        ExitOutcome::PartialSuccess,
+        ExitOutcome::Success,
+    ];
+    assert_eq!(
+        outcomes.iter().max().copied(),
+        Some(ExitOutcome::PartialSuccess)
+    );
 }
 
 #[test]

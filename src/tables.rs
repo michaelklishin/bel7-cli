@@ -131,6 +131,7 @@ impl TableStyle {
 }
 
 /// A builder for styled tables.
+#[derive(Clone)]
 pub struct StyledTable {
     style: TableStyle,
     header: Option<String>,
@@ -218,8 +219,22 @@ impl StyledTable {
     /// Builds the final table from the provided data.
     pub fn build<T: tabled::Tabled>(self, data: Vec<T>) -> Table {
         let mut table = Table::new(data);
+        self.apply_to(&mut table);
+        table
+    }
 
-        self.style.apply(&mut table);
+    /// Applies this builder's settings to an existing table.
+    ///
+    /// Use this to style a table built elsewhere, such as the `Table`
+    /// returned by [`build_table_with_columns`], when there is no
+    /// `Vec<T>` to pass to [`build`](Self::build).
+    ///
+    /// `remove_header_row` removes whatever row is first when this
+    /// method runs: a header panel added beforehand would be removed
+    /// instead of the original header row, and a table that never had
+    /// a header row loses its first data row.
+    pub fn apply_to(self, table: &mut Table) {
+        self.style.apply(table);
 
         if let Some(padding) = self.padding {
             table.with(padding);
@@ -248,8 +263,6 @@ impl StyledTable {
         if let Some(width) = self.max_width {
             table.with(Width::truncate(width));
         }
-
-        table
     }
 }
 

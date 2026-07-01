@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![cfg(feature = "clap")]
+
 use bel7_cli::ArgMatchesExt;
 use clap::{Arg, Command};
 

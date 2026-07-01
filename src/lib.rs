@@ -12,21 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Common CLI utilities for Rust command-line applications.
+//! Common utilities for Rust command-line applications.
 //!
 //! This crate provides:
 //!
 //! - Colored console output helpers (success, error, warning, info)
 //! - String truncation for display
+//! - `Severity` and `Tally` for commands that run a list of checks
 //! - Table styling utilities (requires `tables` feature)
-//! - Clap argument helpers (requires `clap` feature)
+//! - `clap` argument helpers (requires `clap` feature)
 //! - Shell completion generation (requires `completions` feature)
 //! - Progress reporting (requires `progress` feature)
 //!
 //! # Features
 //!
 //! - `tables` - Enables table styling with `tabled`
-//! - `clap` - Enables clap argument helper extensions
+//! - `clap` - Enables `clap` argument helper extensions
 //! - `completions` - Enables shell completion generation
 //! - `progress` - Enables progress reporting utilities
 //! - `errors` - Enables exit code mapping with `sysexits`
@@ -35,6 +36,7 @@
 #[cfg(feature = "errors")]
 mod errors;
 
+mod checks;
 mod output;
 mod truncate;
 
@@ -67,6 +69,8 @@ pub use progress::*;
 
 #[cfg(feature = "errors")]
 pub use errors::*;
+
+pub use checks::*;
 
 mod testing;
 pub use testing::*;

@@ -189,6 +189,20 @@ impl<E> Outcome<E>
 where
     E: ExitCodeProvider,
 {
+    /// `PartialSuccess` if `degraded` is `true`, `Success` otherwise.
+    ///
+    /// Collapses the `if degraded { PartialSuccess } else { Success }`
+    /// mapping at the end of a command handler. Composes with
+    /// [`Tally::is_partial_success_worthy`](crate::Tally::is_partial_success_worthy).
+    #[must_use]
+    pub fn partial_if(degraded: bool) -> Self {
+        if degraded {
+            Outcome::PartialSuccess
+        } else {
+            Outcome::Success
+        }
+    }
+
     /// The integer exit code this outcome corresponds to.
     ///
     /// Borrows rather than consuming so the caller can log the error
@@ -306,6 +320,12 @@ where
 /// round-trip. Callers that need to branch on sysexits values (`64`
 /// usage, `65` data, `75` temp-fail) read the integer directly out of
 /// `Failure(i32)`.
+///
+/// Variants are declared in ascending order of severity, so `Ord`
+/// comparisons and `max` select the worst outcome of a set. Two
+/// `Failure` values compare by raw code, which carries no severity
+/// meaning; the useful guarantee is that any `Failure` ranks above
+/// `PartialSuccess`, which ranks above `Success`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ExitOutcome {
     /// The subprocess exited `0`.

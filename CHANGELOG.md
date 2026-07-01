@@ -2,7 +2,21 @@
 
 ## 0.14.0 (in development)
 
-No changes yet.
+### Breaking Changes
+
+  * The re-exported `ExitCode` no longer implements `fmt::Octal`, `fmt::LowerHex`, `fmt::UpperHex`, `fmt::Binary`, `fmt::LowerExp`, or `fmt::UpperExp`: `sysexits` `0.13` removed those implementations
+
+### Enhancements
+
+  * New `Severity` enum (`Info`, `Warning`, `Error`) with `Ord` and `PartialOrd` support, for commands that run an ordered list of checks, such as `lint` or `verify`
+  * New `Tally` struct that counts `Severity` occurrences and decides whether a run should be reported as partial success
+  * `Severity` and `Tally` support `Serialize` and `Deserialize` behind the `serde` feature, matching `TableStyle` and `CompletionShell`. `Severity` serializes in `snake_case` (`"info"`, `"warning"`, `"error"`), matching its `Display` output; `Tally` deserializes missing counter fields as zero
+  * New `StyledTable::apply_to`, for applying a builder's style, padding, header, and newline settings to a table that was constructed elsewhere. `StyledTable` implements `Clone`, so one configured builder can style several tables
+  * New `Outcome::partial_if(degraded: bool)`, a shorthand for the `if degraded { PartialSuccess } else { Success }` mapping at the end of a command handler
+
+### Dependencies
+
+  * `sysexits` upgraded to `0.13`, and the crate's `rust-version` bumped to `1.87` to match
 
 
 ## 0.13.0 (Jun 1, 2026)

@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#![cfg(feature = "tables")]
+
 use bel7_cli::{
     DEFAULT_TERMINAL_WIDTH, Padding, StyledTable, TableStyle, build_table_with_columns,
     display_option, display_option_or, parse_columns, responsive_width, terminal_width,
 };
+use tabled::Table;
 use tabled::Tabled;
+use tabled::builder::Builder;
 
 #[derive(Tabled, Clone)]
 struct TestRow {
@@ -444,6 +448,100 @@ fn test_styled_table_responsive_combo() {
         .max_width(responsive_width(0.8))
         .build(data);
     let _ = table.to_string();
+}
+
+#[test]
+fn test_apply_to_matches_build_for_equivalent_input() {
+    let data = vec![
+        MultiLineRow {
+            name: "item1".into(),
+            tags: "a\nb".into(),
+        },
+        MultiLineRow {
+            name: "item2".into(),
+            tags: "c\nd".into(),
+        },
+    ];
+
+    let styled = StyledTable::new()
+        .style(TableStyle::Borderless)
+        .remove_header_row()
+        .padding(Padding::new(0, 1, 0, 0))
+        .replace_newlines(",");
+
+    let built = styled.clone().build(data.clone());
+
+    let mut table = Table::new(data);
+    styled.apply_to(&mut table);
+
+    assert_eq!(built.to_string(), table.to_string());
+}
+
+#[test]
+fn test_apply_to_restyles_a_table_built_elsewhere() {
+    // Simulates a table built outside of `StyledTable::build`, still
+    // carrying its column header row
+    let mut builder = Builder::default();
+    builder.push_record(["name", "value"]);
+    builder.push_record(["alice", "1"]);
+    builder.push_record(["bob", "2"]);
+    let mut table = builder.build();
+
+    StyledTable::new()
+        .style(TableStyle::Markdown)
+        .remove_header_row()
+        .apply_to(&mut table);
+
+    let output = table.to_string();
+    assert!(output.contains("alice"));
+    assert!(output.contains("bob"));
+    assert!(!output.contains("name"));
+    assert!(!output.contains("value"));
+}
+
+#[test]
+fn test_apply_to_can_add_a_header_panel_to_a_table_built_elsewhere() {
+    let mut builder = Builder::default();
+    builder.push_record(["name", "value"]);
+    builder.push_record(["alice", "1"]);
+    let mut table = builder.build();
+
+    StyledTable::new()
+        .style(TableStyle::Markdown)
+        .header("Pre-built")
+        .apply_to(&mut table);
+
+    let output = table.to_string();
+    assert!(output.contains("Pre-built"));
+    assert!(output.contains("name"));
+    assert!(output.contains("alice"));
+}
+
+#[test]
+fn test_apply_to_styles_a_table_from_build_table_with_columns() {
+    let data = vec![
+        TestRow {
+            name: "alice".into(),
+            value: 1,
+        },
+        TestRow {
+            name: "bob".into(),
+            value: 2,
+        },
+    ];
+    let columns = parse_columns("name");
+    let mut table = build_table_with_columns(&data, &columns);
+
+    StyledTable::new()
+        .style(TableStyle::Markdown)
+        .apply_to(&mut table);
+
+    let output = table.to_string();
+    assert!(output.contains("alice"));
+    assert!(output.contains("bob"));
+    // Markdown borders prove the restyling was applied
+    assert!(output.contains('|'));
+    assert!(!output.contains('+'));
 }
 
 mod proptests {
