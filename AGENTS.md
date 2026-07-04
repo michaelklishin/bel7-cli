@@ -20,7 +20,7 @@ cargo clippy --all-features
 ## Repository Layout
 
  * `src/lib.rs`: crate root, re-exports
- * `src/output.rs`: colored console output helpers (print_success, print_error, etc.)
+ * `src/output.rs`: colored console output helpers (`print_success`, `print_error`, and so on)
  * `src/truncate.rs`: string truncation utilities
  * `src/tables.rs`: table styling with tabled (requires the `tables` feature)
  * `src/clap_ext.rs`: clap argument parsing extensions (requires the `clap` feature)
@@ -44,7 +44,7 @@ cargo clippy --all-features
 
 ## Rust Code Style
 
- * Use top-level `use` statements (imports), e.g. `Display` or `fmt::Display` with a `use` statement, not `std::fmt::Display`
+ * Prefer top-level `use` statements (imports) over fully qualified names: `Display` or `fmt::Display` with a `use` statement, not `std::fmt::Display`
  * Never use function-local `use` statements (imports)
  * Add tests to the `tests/` directory, not inline with implementation
  * At the end of each task, run `cargo fmt --all`
@@ -64,6 +64,16 @@ to all prose: design docs, analyses, notes, and commit messages.
  * Prefer the plainest word. No coined verbs, no jargon for its own sake
  * No flourish, no editorializing, no imagery. Real domain terms are fine
  * If a sentence needs a second clause to justify itself, it is probably too clever
+ * Plain full sentences over compressed clever noun phrases: "a helper
+   crate", not "a `tower`-shaped convenience"
+ * State guarantees and behavior explicitly; do not leave them implied
+   by jargon
+ * Name tools and platforms precisely: `rustc` 1.92, edition 2024,
+   crates.io, WebAssembly
+ * No bold for emphasis; bold is for structural labels only, and sparingly
+ * No "term — explanation" em-dash glosses: use ": " or parentheses
+ * These vocabulary rules apply to identifiers too: test function names,
+   helper modules, and fixture names use the same plain words as prose
 
 ### Writing and Markdown Style
 
@@ -75,7 +85,7 @@ to all prose: design docs, analyses, notes, and commit messages.
    like `Display`, functions like `Iterator::next`, modules, file names, and paths
  * Avoid robotic labels such as `**Thing / other:**`; write a plain sentence or a simple label
  * Match the existing conventions of the file and subdirectory you are
-   editing — bullet character, heading depth, ID schemes, and table shape
+   editing: bullet character, heading depth, ID schemes, and table shape
    vary by project, and the local choice wins
 
 ## Git Instructions
