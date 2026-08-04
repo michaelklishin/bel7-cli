@@ -21,6 +21,8 @@ optional = true
 [dependencies.tabled]
 version = "0.21"
 optional = true
+default-features = false
+features = ["std"]
 
 [dependencies.clap]
 version = "4.6"
@@ -48,6 +50,9 @@ features = ["derive"]
 optional = true
 
 [dev-dependencies]
+# Enables `#[derive(Tabled)]` in the test suite only.
+# FIXME For as long as `proc-macro-error2` is supported.
+tabled = { version = "0.21", features = ["derive"] }
 thiserror = "2.0"
 proptest = "1.11"
 serde_json = "1.0"
