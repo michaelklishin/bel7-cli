@@ -1,5 +1,10 @@
 # Change log
 
+## 0.15.0 (in development)
+
+No changes yet.
+
+
 ## 0.14.0 (Aug 3, 2026)
 
 ### Breaking Changes
