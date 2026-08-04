@@ -16,6 +16,7 @@
 
 ### Dependencies
 
+ * The library no longer pulls in `proc-macro-error2`
   * `sysexits` upgraded to `0.13`, and the crate's `rust-version` bumped to `1.87` to match
 
 
