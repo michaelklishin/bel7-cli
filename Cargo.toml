@@ -65,3 +65,13 @@ progress = ["dep:indicatif"]
 serde = ["dep:serde"]
 errors = ["dep:sysexits"]
 full = ["tables", "clap", "completions", "progress", "serde", "errors"]
+
+[profile.dev]
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+lto = "off"
+
+[profile.test]
+debug = "line-tables-only"
+split-debuginfo = "unpacked"
+lto = "off"
