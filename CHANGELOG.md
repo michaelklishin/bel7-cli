@@ -2,7 +2,9 @@
 
 ## 0.15.0 (in development)
 
-No changes yet.
+### Dependencies
+
+ * `tabled` upgraded to `0.22.0`, which drops the crate's `proc-macro-error2` dependency
 
 
 ## 0.14.0 (Aug 3, 2026)
