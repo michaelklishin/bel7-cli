@@ -3,11 +3,8 @@ name: Release
 on:
   workflow_dispatch:
   push:
-    branches: [main]
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+*'
-  pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -21,7 +18,6 @@ env:
 
 jobs:
   dry-run:
-    if: github.event_name != 'push' || !startsWith(github.ref, 'refs/tags/')
     name: Dry-run packaging
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -57,7 +53,7 @@ jobs:
 
   publish:
     if: startsWith(github.ref, 'refs/tags/')
-    needs: [validate]
+    needs: [validate, dry-run]
     name: Publish to crates.io
     runs-on: ubuntu-24.04
     environment: release
